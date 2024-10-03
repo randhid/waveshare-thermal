@@ -1,0 +1,12 @@
+{
+  "module_name": "waveshare-thermal",
+  "namespace": "rand",
+  "language": "python",
+  "resource_type": "component",
+  "resource_subtype": "camera",
+  "model_name": "mlx90641-ir",
+  "enable_cloud_build": true,
+  "initialize_git": true,
+  "generator_version": "0.1.0",
+  "generated_on": "2024-10-01T20:46:30.31793Z"
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://dl.viam.dev/module.schema.json",
+  "module_id": "rand:waveshare-thermal",
+  "visibility": "public",
+  "url": "",
+  "description": "Modular camera component: mlx90641-ir",
+  "models": [
+    {
+      "api": "rdk:component:camera",
+      "model": "rand:waveshare-thermal:mlx90641-ir"
+    }
+  ],
+  "entrypoint": "dist/main",
+  "build": {
+    "build": "./build.sh",
+    "setup": "./setup.sh",
+    "path": "dist/archive.tar.gz",
+    "arch": [
+      "linux/amd64",
+      "linux/arm64",
+      "darwin/arm64"
+    ]
+  }
+}
