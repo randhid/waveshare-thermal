@@ -113,31 +113,17 @@ class Mlx90641Ir(Camera, EasyResource):
                 image_data.append(normalized_frame[start_index:end_index])
             np_array = np.array(image_data, dtype=np.uint8)  # dtype=np.uint8 for grayscale
 
-            # 2. Convert the numpy array into a PIL image
+            # Convert the numpy array into a PIL image
             img = Image.fromarray(np_array)
             LOGGER.error(f"array shape is {np_array.shape}")
 
             viam_img = pil.pil_to_viam_image(img, mime_type=CameraMimeType.PNG)
             return viam_img
-            # # Create a grayscale Pillow image from the 2D list
-            # img = Image.new('L', (32, 24))  # 'L' mode for grayscale
-            # pixels = img.load()
-            # for row in range(24):
-            #     for col in range(32):
-            #         pixels[col, row] = image_data[row][col]
 
-            # # Save the image as a JPEG to an in-memory buffer
-            # img_buffer = BytesIO()
-            # img.save(img_buffer, format="JPEG")
-            # img_buffer.seek(0)  # Move the pointer to the start of the buffer
-
-            # # Pass the JPEG byte data to ViamImage
-            # return ViamImage(data=img_buffer.read(), mime_type=CameraMimeType.PNG)
 
         except Exception as e:
             print(f"Error capturing image: {e}")
             pass
-        #     return ViamImage()
         
     
     async def get_images(
