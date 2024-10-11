@@ -1,3 +1,4 @@
 viam-sdk==0.30.0
 typing-extensions
 pyinstaller
+adafruit-circuitpython-mlx90640

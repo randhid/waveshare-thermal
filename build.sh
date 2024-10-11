@@ -9,5 +9,5 @@ if ! $PYTHON -m pip install pyinstaller -Uqq; then
     exit 1
 fi
 
-$PYTHON -m PyInstaller --onefile --hidden-import="googleapiclient" src/main.py
-tar -czvf dist/archive.tar.gz ./dist/main
+$PYTHON -m PyInstaller --onefile --hidden-import=googleapiclient --hidden-import=adafruit_mlx90640 --hidden-import=rpi-gpio src/main.py
+tar -czvf dist/archive.tar.gz ./dist/main ./meta.json
