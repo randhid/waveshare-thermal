@@ -10,11 +10,10 @@
       "model": "rand:waveshare-thermal:mlx90641-ir"
     }
   ],
-  "entrypoint": "dist/main",
+  "entrypoint": "src/main.py",
   "build": {
-    "build": "./build.sh",
-    "setup": "./setup.sh",
-    "path": "dist/archive.tar.gz",
+    "build": "make module.tar.gz",
+    "path": "module.tar.gz",
     "arch": [
       "linux/amd64",
       "linux/arm64"
