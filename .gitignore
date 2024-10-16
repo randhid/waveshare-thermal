@@ -163,3 +163,5 @@ cython_debug/
 
 # VSCODE
 .vscode
+
+*.tar.gz
