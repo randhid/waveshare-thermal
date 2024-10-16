@@ -14,7 +14,7 @@ if [ ! $(command -v uv) ]; then
 fi
 
 if [ ! -d .venv ]; then
-	uv venv
+	uv venv --python=3.12
 fi
-uv pip sync requirements.txt
+uv pip install -r requirements.txt
 .venv/bin/python src/main.py $@
