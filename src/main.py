@@ -53,6 +53,29 @@ def normalize_frame(frame):
     ]
     return normalized_frame
 
+# Nearest-neighbor interpolation for resizing
+def resize_image(image_data, new_width, new_height):
+    old_height = len(image_data)
+    old_width = len(image_data[0])
+
+    # Create the resized image placeholder
+    resized_image = [[0 for _ in range(new_width)] for _ in range(new_height)]
+
+    # Calculate scale factors
+    x_ratio = old_width / new_width
+    y_ratio = old_height / new_height
+
+    for new_y in range(new_height):
+        for new_x in range(new_width):
+            # Find the nearest pixel in the original image
+            old_x = int(new_x * x_ratio)
+            old_y = int(new_y * y_ratio)
+
+            # Assign the pixel to the new image
+            resized_image[new_y][new_x] = image_data[old_y][old_x]
+
+    return resized_image
+
 # Create a ViamImage from the normalized frame
 def create_viam_image(normalized_frame) -> ViamImage:
     # Reshape the 1D frame into a 32x24 2D array
@@ -62,8 +85,11 @@ def create_viam_image(normalized_frame) -> ViamImage:
         end_index = start_index + 32
         image_data.append(normalized_frame[start_index:end_index])
 
+    # Resize the image to 120x160 using nearest-neighbor interpolation
+    resized_image_data = resize_image(image_data, 120, 160)
+
     # Create and return the ViamImage (assuming grayscale PNG is expected)
-    return ViamImage(data=image_data, mime_type='image/png')
+    return ViamImage(data=resized_image_data, mime_type='image/png')
 
 # Main logic to capture the image
 def capture_thermal_image() -> ViamImage:
@@ -79,16 +105,12 @@ def capture_thermal_image() -> ViamImage:
         # Normalize frame for grayscale conversion
         normalized_frame = normalize_frame(frame)
 
-        # Create and return the ViamImage
+        # Create and return the resized ViamImage
         return create_viam_image(normalized_frame)
     
     finally:
         # Close the I2C device
         os.close(fd)
-
-# # Example usage
-# viam_image = capture_thermal_image()
-# print("ViamImage created successfully.")
 
 
 class Mlx90641Ir(Camera, EasyResource):
@@ -100,7 +122,8 @@ class Mlx90641Ir(Camera, EasyResource):
     def new(
         cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]
     ) -> Self:
-        return 
+        instance = cls(config.name)
+        return instance
 
     @classmethod
     def validate_config(cls, config: ComponentConfig) -> Sequence[str]:
@@ -110,6 +133,7 @@ class Mlx90641Ir(Camera, EasyResource):
         self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]
     ):
         return super().reconfigure(config, dependencies)
+
 
     async def get_image(
         self,
