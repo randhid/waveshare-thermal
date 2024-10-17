@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 import asyncio
-from typing import (Any, ClassVar, Dict, List, Mapping, Optional)
-
-from typing_extensions import Self
-from viam.components.camera import Camera
-from viam.proto.app.robot import ComponentConfig
-from viam.components.sensor import Sensor
-from viam.media.video import ViamImage
-from viam.module.module import Module
-from viam.resource.easy_resource import EasyResource
-from viam.resource.types import Model, ModelFamily
-from viam.utils import SensorReading
-from viam.proto.common import ResourceName
-from viam.resource.base import ResourceBase
-
-
-
 import os
 import fcntl
 import struct
+from typing import (Any, ClassVar, Dict, List, Mapping, Optional, cast, Tuple)
+
+
+# from typing_extensions import Self
+from viam.components.camera import Camera 
+from viam.components.sensor import Sensor
+from viam.module.module import Module
+from viam.media.video import ViamImage, NamedImage
+from viam.proto.app.robot import ComponentConfig
+from viam.proto.common import ResponseMetadata, ResourceName
+from viam.proto.component.camera import GetPropertiesResponse
+from viam.resource.base import ResourceBase
+from viam.resource.easy_resource import EasyResource
+from viam.resource.types import Model, ModelFamily
+from viam.utils import SensorReading, struct_to_dict
+
+
 
 I2C_TARGET = 0x0703
 MLX90640_I2C_ADDR = 0x33  # Default I2C address for MLX90640
@@ -41,7 +42,7 @@ def parse_frame(raw_data):
     frame = []
     for i in range(0, len(raw_data), 2):
         # Convert two bytes into one 16-bit integer
-        val = struct.unpack('<H', raw_data[i:i+2])[0]
+        val = struct.unpack('<h', raw_data[i:i+2])[0]
         frame.append(val)
     return frame
 
@@ -91,7 +92,7 @@ def create_viam_image(normalized_frame) -> ViamImage:
 
     # Create and return the ViamImage (assuming grayscale PNG is expected)
     return ViamImage(data=resized_image_data, mime_type='image/png')
-
+    
 # Main logic to get frames
 def capture_thermal_data() -> List:
     try:
@@ -107,47 +108,8 @@ def capture_thermal_data() -> List:
         # Close the I2C device
         os.close(fd)
 
-
-class MlxCamera(Camera, EasyResource):
-    MODEL: ClassVar[Model] = Model(
-        ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-camera"
-    )
-    mlxsensor : Sensor
-
-    @classmethod
-    def new(
-      cls, config: ComponentConfig,
-      dependencies: Mapping[ResourceName, ResourceBase]
-      ) -> Self:
-        mlxcamera = cls(config.name)
-
-        sensor_name = config.attributes.fields["camera"].string_value
-        if sensor_name == "":
-            raise Exception(
-                "An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
-
-        mlxcamera.mlxsensor = dependencies[Sensor.get_resource_name(sensor_name)]
-
-        return mlxcamera
-    
-    async def get_image(
-        self,
-        mime_type: str = "",
-        *,
-        extra: Optional[Dict[str, Any]] = None,
-        timeout: Optional[float] = None,
-        **kwargs
-    ) -> ViamImage:
-
-        readings = await self.mlxsensor.get_readings()
-        frame = readings["all_temperatures"]
-
-        # Normalize frame for grayscale conversion
-        normalized_frame = normalize_frame(frame)
-
-        # Create and return the resized ViamImage
-        return create_viam_image(normalized_frame)
-
+## Implementation of the mlx90641 ir sensor
+## This returns an arrya of temperatures
 class MlxSensor(Sensor, EasyResource):
     MODEL: ClassVar[Model] = Model(
         ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-sensor"
@@ -168,6 +130,73 @@ class MlxSensor(Sensor, EasyResource):
             "max_temp_celsius" : max(readings)
         }
 
+
+## Implementation of the Mlx90641 Camera
+## this uses the sensor to create an resized image so you can see 
+## the thermal image it is producing
+## The image is not appropriate for use in trainign models
+class MlxCamera(Camera, EasyResource):
+    MODEL: ClassVar[Model] = Model(
+        ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-camera"
+    )
+    # mlxsensor : Sensor
+
+    # @classmethod
+    # def new(
+    #   cls, config: ComponentConfig,
+    #   dependencies: Mapping[ResourceName, ResourceBase]
+    #   ) -> Self:
+    #     attributes_dict = struct_to_dict(config.attributes)
+    #     sensor_name = attributes_dict("sensor", "")
+    #     if sensor_name == "":
+    #         raise Exception("An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
+        
+    #     sensor = dependencies[Sensor.get_resource_name(sensor_name)]
+    #     mlxcamera = cls(config.name)
+    #     # mlxcamera.mlxsensor = cast(Sensor, sensor)
+    #     return mlxcamera
+    
+    @classmethod
+    def validate(cls, config: ComponentConfig):
+        attributes_dict = struct_to_dict(config.attributes)
+        sensor_name = attributes_dict.get("sensor", "")
+        assert isinstance(sensor_name, str)
+        if sensor_name == "":
+            raise Exception("An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
+        return [sensor_name]
+
+    async def get_image(
+        self,
+        mime_type: str = "",
+        *,
+        extra: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        **kwargs
+    ) -> ViamImage:
+        # readings = await self.mlxsensor.get_readings()
+        # frame = readings["all_temperatures"]
+
+        # # Normalize frame for grayscale conversion
+        # normalized_frame = normalize_frame(frame)
+
+        # # Create and return the resized ViamImage
+        # return create_viam_image(normalized_frame)
+        raise NotImplementedError()
+
+    async def get_images(
+        self, *, timeout: Optional[float] = None, **kwargs
+    ) -> Tuple[List[NamedImage], ResponseMetadata]:
+        raise NotImplementedError()
+
+    async def get_point_cloud(
+        self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ) -> Tuple[bytes, str]:
+        raise NotImplementedError()
+
+    async def get_properties(
+        self, *, timeout: Optional[float] = None, **kwargs
+    ) -> GetPropertiesResponse:
+            raise NotImplementedError() 
 
 if __name__ == "__main__":
     asyncio.run(Module.run_from_registry())
