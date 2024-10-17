@@ -7,7 +7,11 @@
   "models": [
     {
       "api": "rdk:component:camera",
-      "model": "rand:waveshare-thermal:mlx90641-ir"
+      "model": "rand:waveshare-thermal:mlx90641-ir-camera"
+    },
+    {
+      "api": "rdk:component:sensor",
+      "model": "rand:waveshare-thermal:mlx90641-ir-sensor"
     }
   ],
   "entrypoint": "run.sh",

@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
 import asyncio
-import sys
-from typing import (Any, ClassVar, Dict, Final, List, Mapping, Optional,
-                    Sequence, Tuple)
+from typing import (Any, ClassVar, Dict, List, Mapping, Optional)
 
 from typing_extensions import Self
 from viam.components.camera import Camera
-from viam.media.video import NamedImage, ViamImage
-from viam.module.module import Module
 from viam.proto.app.robot import ComponentConfig
-from viam.proto.common import ResourceName, ResponseMetadata
-from viam.proto.component.camera import GetPropertiesResponse
-from viam.resource.base import ResourceBase
+from viam.components.sensor import Sensor
+from viam.media.video import ViamImage
+from viam.module.module import Module
 from viam.resource.easy_resource import EasyResource
 from viam.resource.types import Model, ModelFamily
+from viam.utils import SensorReading
+from viam.proto.common import ResourceName
+from viam.resource.base import ResourceBase
+
 
 
 import os
 import fcntl
 import struct
 
-I2C_SLAVE = 0x0703
+I2C_TARGET = 0x0703
 MLX90640_I2C_ADDR = 0x33  # Default I2C address for MLX90640
 I2C_DEVICE = "/dev/i2c-1"  # Default I2C bus for Raspberry Pi
 
 # Open the I2C device
 def open_i2c_device():
     fd = os.open(I2C_DEVICE, os.O_RDWR)
-    fcntl.ioctl(fd, I2C_SLAVE, MLX90640_I2C_ADDR)
+    fcntl.ioctl(fd, I2C_TARGET, MLX90640_I2C_ADDR)
     return fd
 
 # Read raw data from the MLX90640 sensor
@@ -92,50 +92,44 @@ def create_viam_image(normalized_frame) -> ViamImage:
     # Create and return the ViamImage (assuming grayscale PNG is expected)
     return ViamImage(data=resized_image_data, mime_type='image/png')
 
-# Main logic to capture the image
-def capture_thermal_image() -> ViamImage:
+# Main logic to get frames
+def capture_thermal_data() -> List:
     try:
         fd = open_i2c_device()
 
         # Read raw sensor data
         raw_data = read_sensor_data(fd)
 
-        # Parse raw data into temperature frame
-        frame = parse_frame(raw_data)
-
-        # Normalize frame for grayscale conversion
-        normalized_frame = normalize_frame(frame)
-
         # Create and return the resized ViamImage
-        return create_viam_image(normalized_frame)
+        return parse_frame(raw_data)
     
     finally:
         # Close the I2C device
         os.close(fd)
 
 
-class Mlx90641Ir(Camera, EasyResource):
+class MlxCamera(Camera, EasyResource):
     MODEL: ClassVar[Model] = Model(
-        ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir"
+        ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-camera"
     )
+    mlxsensor : Sensor
 
     @classmethod
     def new(
-        cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]
-    ) -> Self:
-        instance = cls(config.name)
-        return instance
+      cls, config: ComponentConfig,
+      dependencies: Mapping[ResourceName, ResourceBase]
+      ) -> Self:
+        mlxcamera = cls(config.name)
 
-    @classmethod
-    def validate_config(cls, config: ComponentConfig) -> Sequence[str]:
-        return []
+        sensor_name = config.attributes.fields["camera"].string_value
+        if sensor_name == "":
+            raise Exception(
+                "An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
 
-    def reconfigure(
-        self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]
-    ):
-        return super().reconfigure(config, dependencies)
+        mlxcamera.mlxsensor = dependencies[Sensor.get_resource_name(sensor_name)]
 
-
+        return mlxcamera
+    
     async def get_image(
         self,
         mime_type: str = "",
@@ -144,29 +138,35 @@ class Mlx90641Ir(Camera, EasyResource):
         timeout: Optional[float] = None,
         **kwargs
     ) -> ViamImage:
-        image = capture_thermal_image()
-        return image
 
-    async def get_images(
-        self, *, timeout: Optional[float] = None, **kwargs
-    ) -> Tuple[
-        List[NamedImage], ResponseMetadata
-    ]:
-        raise NotImplementedError()
+        readings = await self.mlxsensor.get_readings()
+        frame = readings["all_temperatures"]
 
-    async def get_point_cloud(
+        # Normalize frame for grayscale conversion
+        normalized_frame = normalize_frame(frame)
+
+        # Create and return the resized ViamImage
+        return create_viam_image(normalized_frame)
+
+class MlxSensor(Sensor, EasyResource):
+    MODEL: ClassVar[Model] = Model(
+        ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-sensor"
+    )
+
+    async def get_readings(
         self,
         *,
-        extra: Optional[Dict[str, Any]] = None,
+        extra: Optional[Mapping[str, Any]] = None,
         timeout: Optional[float] = None,
         **kwargs
-    ) -> Tuple[bytes, str]:
-        raise NotImplementedError()
+    ) -> Mapping[str, SensorReading]:
+        readings = capture_thermal_data()
 
-    async def get_properties(
-        self, *, timeout: Optional[float] = None, **kwargs
-    ) -> GetPropertiesResponse:
-        raise NotImplementedError()
+        return {
+            "all_temperatures": readings,
+            "min_temp_celcius" : min(readings),
+            "max_temp_celsius" : max(readings)
+        }
 
 
 if __name__ == "__main__":
