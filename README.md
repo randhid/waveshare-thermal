@@ -1,16 +1,15 @@
 # [`rand:waveshare-thermal` module](<https://github.com/randhid/waveshare-thermal>)
 
-This [module](https://docs.viam.com/registry/#modular-resources) implements the [`rdk:components:sensor` and the `rdk:components:camera` API] in <rand:waveshare-thermal:mlx90461-ir-sensor> and  <rand:waveshare-thermal:mlx90461-ir-camera> models.
-With this model, you can use waveshar'es thermal cameras to sensor temperatures and show an image of the associated heatmap that the IR lens is sensing from its environment. 
+This [module](https://docs.viam.com/registry/#modular-resources) implements the [`rdk:components:sensor` and the `rdk:components:camera` API] in <rand:waveshare-thermal:mlx90641-ir-sensor> and  <rand:waveshare-thermal:mlx90641-ir-camera> models.
+With this module, you can use Waveshare's thermal cameras to detect temperatures and display an image of the associated heatmap that the IR lens senses from its environment.
 
-Note: the associated heatmap from the camera has been resized from it's 24x32 pixel array so that is is easier to see, and would be unsuitable for use in algorirthms that need accurate temperatures from the sensor. Please configure a  <rand:waveshare-thermal:mlx90461-ir-sensor> and use the sensor's [`GetReadings`](https://docs.viam.com/appendix/apis/components/sensor/#getreadings) method to extract accurate data from this device.
+*Note*: The associated heatmap from the camera has been resized from its 24x32 pixel array to make it easier to see. However, this resized image would be unsuitable for algorithms that require precise temperatures. Please configure a<rand:waveshare-thermal:mlx90641-ir-sensor> and use the sensor's [`GetReadings`](https://docs.viam.com/appendix/apis/components/sensor/#getreadings) method to extract accurate data from this device.
 
 ## Requirements
 
-The module only installs on a Rapsberry Pi boards with Python >= 3.8 as RPi.GPIO is required for the current release.
+This module installs only on Raspberry Pi boards with Python >= 3.8, as RPi.GPIO is required for the current release.
 
-The module should try to install uv to run, but should that python package need to be insatlled, you can install it with:
-
+The module should attempt to install uv to run, but if this Python package needs to be installed manually, you can install it with the following commands:
 ```bash
 # On Linux.
 $ curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -37,7 +36,7 @@ Navigate to the [**CONFIGURE** tab](https://docs.viam.com/configure/) of your [m
 [Add `camera`/ `waveshare-thermal:mlx90641-ir-camera` to your machine](https://docs.viam.com/configure/#components).
 
 
-On the new component panel, copy and paste the following attribute template into your base’s attributes field:
+On the new component panel, copy and paste the following attribute template into your camera's attributes field:
 
 ```json
 {
@@ -92,10 +91,10 @@ The following attributes are available for `rand:waveshare-thermal:mlx90641-ir-c
 ```
 
 ### Next steps
-You can wirte code using this module using the [sensor](https://docs.viam.com/appendix/apis/components/sensor/) or [camera](https://www.google.com/search?q=viam+camera+api) viam APIs. 
+You can wirte code using this module using the [sensor](https://docs.viam.com/appendix/apis/components/sensor/) or [camera](https://www.google.com/search?q=viam+camera+api) Viam APIs. 
 
 ## Troubleshooting
 
-Make sure that the i2c wires are connected to the [correct pins](https://pinout.xyz/) - SDA of the device to the SDA pin on the baord, and SCL pin from the device to the SCL pin on the Raspberry Pi board.
+Make sure that the I2C wires are connected to the [correct pins](https://pinout.xyz/): connect the SDA of the device to the SDA pin on the board, and the SCL pin of the device to the SCL pin on the Raspberry Pi.
 
-When the device boots up, it follows a calibration sequence and will not show readings or an aimage immediately, allows 5-10 seconds for the device to extract it's calirbation parameters and apply them, then it will starts measuring and reporting data. 
+When the device boots up, it follows a calibration sequence and will not show readings or an aimage immediately, allows 5-10 seconds for the device to extract its calirbation parameters and apply them, then it will starts measuring and reporting data. 
