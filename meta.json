@@ -3,7 +3,7 @@
   "module_id": "rand:waveshare-thermal",
   "visibility": "public",
   "url": "https://github.com/randhid/waveshare-thermal",
-  "description": "Modular camera component: mlx90641-ir",
+  "description": "Modular camera and sensor component for the  mlx90641-ir thermal camera sensor",
   "models": [
     {
       "api": "rdk:component:camera",
