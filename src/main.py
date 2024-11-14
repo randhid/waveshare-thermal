@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import asyncio
 from typing import (Any, ClassVar, Dict, List, Mapping, Optional, cast, Tuple)
-import io
+from functools import lru_cache
+from array import array
+
 
 from typing_extensions import Self
 from viam.components.camera import Camera 
@@ -15,7 +17,6 @@ from viam.resource.base import ResourceBase
 from viam.resource.easy_resource import EasyResource
 from viam.resource.types import Model, ModelFamily
 from viam.utils import SensorReading, struct_to_dict
-from PIL import Image
 
 import board
 import busio
@@ -31,11 +32,33 @@ def convert_frame_to_fahrenheit(frame):
 
     
 ## Implementation of the mlx90641 ir sensor
-## This returns an array of temperatures
+## This returns an arrya of temperatures
 class MlxSensor(Sensor, EasyResource):
     MODEL: ClassVar[Model] = Model(
         ModelFamily("rand", "waveshare-thermal"), "mlx90641-ir-sensor"
     )
+    mlx = adafruit_mlx90640
+
+    @classmethod
+    def new(
+      cls, config: ComponentConfig,
+      dependencies: Mapping[ResourceName, ResourceBase]
+      ) -> Self:
+        mlxsensor = cls(config.name)
+
+        # Initialize I2C bus
+        i2c = busio.I2C(board.SCL, board.SDA)
+
+        # Initialize the MLX90640 sensor
+        mlx = adafruit_mlx90640.MLX90640(i2c)
+
+        # Set the refresh rate
+        mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_0_5_HZ
+        
+        mlxsensor.mlx = mlx
+
+        return mlxsensor
+    
     async def get_readings(
         self,
         *,
@@ -44,21 +67,15 @@ class MlxSensor(Sensor, EasyResource):
         **kwargs
     ) -> Mapping[str, SensorReading]:
         try:
-
-            # Initialize I2C bus
-            i2c = busio.I2C(board.SCL, board.SDA)
-
-            # Initialize the MLX90640 sensor
-            mlx = adafruit_mlx90640.MLX90640(i2c)
-
-            # Set the refresh rate
-            mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_0_5_HZ
-
             # Create a frame buffer
-            readings = [0] * 768  # MLX90640 has 768 pixels    
+            frame = [0] * 768  # MLX90640 has 768 pixels    
             # Read the thermal image
-            mlx.getFrame(readings)
-    
+            readings = self.mlx.getFrame(frame)
+
+        # Print temperatures for each pixel
+            for i in range(0, 192):  # 192 pixels in a 32x24 array
+                print(f"Pixel {i}: {frame[i]:.2f} °C")
+
         except Exception as e:
             raise  Exception(f"Error reading temperature: {e}")
         
@@ -77,58 +94,50 @@ class MlxSensor(Sensor, EasyResource):
             "max_temp_fahrenheit" : max(readings_fahrenheit),
         }
 
-# Normalize frame data to 0-255 for grayscale
-def normalize_frame(frame):
-    min_temp = min(frame)
-    max_temp = max(frame)
-    normalized_frame = [
-        int(255 * (value - min_temp) / (max_temp - min_temp)) for value in frame
-    ]
-    return normalized_frame
-
-# Define a colormap (heatmap colors in RGB format)
-def apply_heatmap(img):
-    # Create a color palette (256 colors for grayscale levels)
-    heatmap_palette = []
+HEATMAP_PALETTE = []
+def create_heatmap_palette():
+    """Pre-compute and cache the heatmap palette"""
+    HEATMAP_PALETTE = []
     for i in range(256):
         if i < 85:  # Blue to Cyan
-            heatmap_palette.extend([0, 0, int(255 * (i / 85))])
+            HEATMAP_PALETTE.extend([0, 0, int(i * 3)])
         elif i < 170:  # Cyan to Yellow
-            heatmap_palette.extend([0, int(255 * ((i - 85) / 85)), 255])
+            HEATMAP_PALETTE.extend([0, 255, 255 - int((i - 85) * 3)])
         else:  # Yellow to Red
-            heatmap_palette.extend([int(255 * ((i - 170) / 85)), 255, 255 - int(255 * ((i - 170) / 85))])
+            HEATMAP_PALETTE.extend([255, 255 - int((i - 170) * 3), 0])
 
-    # Apply the palette to the grayscale image
-    img = img.convert('L')  # Ensure it's in grayscale mode
-    img.putpalette(heatmap_palette)  # Apply the heatmap palette
-    img = img.convert('RGB')  # Convert it to an RGB image
-    return img
-
-# Create a ViamImage from the normalized frame with resizing
-def create_viam_image(normalized_frame, new_width, new_height) -> ViamImage:
-    # Reshape the 1D frame into a 32x24 2D array
-    image_data = []
-    for row in range(24):
-        start_index = row * 32
-        end_index = start_index + 32
-        image_data.append(normalized_frame[start_index:end_index])
-
-    flat_image_data = [pixel for row in image_data for pixel in row]
-
-    byte_data = bytes(flat_image_data)
-
-    # Create a Pillow image from the bytes (32x24 grayscale)
-    img = Image.frombytes('L', (32, 24), byte_data)
-
-    img_resized = img.resize((new_width, new_height), Image.NEAREST)
-    img_heatmap = apply_heatmap(img_resized)
+def create_thermal_image(frame: List[float], width: int, height: int) -> ViamImage:
+    """
+    Create a thermal image directly from sensor data.
+    Combines normalization, heatmap application, and image creation into one optimized flow.
+    """
+    # Normalize temperatures to 0-255 range directly to bytes
+    min_temp = min(frame)
+    max_temp = max(frame)
+    temp_range = max_temp - min_temp
     
-    # Convert the heatmap image to a PNG byte stream
+    # Create normalized bytes directly
+    normalized_data = bytes(
+        int(255 * (temp - min_temp) / temp_range) if temp_range != 0 else 0 
+        for temp in frame
+    )
+    
+    # Create image and apply transformations in one flow
+    img = (Image.frombytes('L', (32, 24), normalized_data)
+           .resize((width, height), Image.NEAREST))
+    
+    # Apply heatmap palette
+    img.putpalette(create_heatmap_palette())
+    img = img.convert('RGB')
+    
+    # Convert to PNG with minimal compression
     img_bytes = io.BytesIO()
-    img_heatmap.save(img_bytes, format='PNG')
+    img.save(img_bytes, format='PNG', optimize=False, compression_level=1)
     img_bytes.seek(0)
-
+    
     return ViamImage(data=img_bytes.read(), mime_type='image/png')
+
+
 
 ## Implementation of the Mlx90641 Camera
 ## this uses the sensor to create an resized image so you can see 
@@ -146,17 +155,23 @@ class MlxCamera(Camera, EasyResource):
       dependencies: Mapping[ResourceName, ResourceBase]
       ) -> Self:
         attributes_dict = struct_to_dict(config.attributes)
-        sensor_name = attributes_dict.get("sensor")
-        assert isinstance(sensor_name, str) 
+        sensor_name = attributes_dict("sensor", "")
         if sensor_name == "":
             raise Exception("An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
         
-        
+        sensor = dependencies[Sensor.get_resource_name(sensor_name)]
         mlxcamera = cls(config.name)
-        print("\n\n deps ", dependencies)
-        print("sensorname: ",  sensor_name, "\n\n")
-        mlxcamera.mlxsensor = dependencies[Sensor.get_resource_name(sensor_name)]
+        # mlxcamera.mlxsensor = cast(Sensor, sensor)
         return mlxcamera
+    
+    @classmethod
+    def validate(cls, config: ComponentConfig):
+        attributes_dict = struct_to_dict(config.attributes)
+        sensor_name = attributes_dict.get("sensor", "")
+        assert isinstance(sensor_name, str)
+        if sensor_name == "":
+            raise Exception("An mlx90641-ir-sensor attribute is required for an mlx90641-ir-camera.")
+        return [sensor_name]
 
     async def get_image(
         self,
@@ -167,11 +182,11 @@ class MlxCamera(Camera, EasyResource):
         **kwargs
     ) -> ViamImage:
         readings = await self.mlxsensor.get_readings()
-        frame = readings["all_temperatures_celcius"]
-
-        normalized_frame = normalize_frame(frame)
-
-        return create_viam_image(normalized_frame, 240, 320)
+        return create_thermal_image(
+            readings["all_temperatures_celcius"], 
+            width=240, 
+            height=320
+        )
 
     async def get_images(
         self, *, timeout: Optional[float] = None, **kwargs
@@ -186,10 +201,7 @@ class MlxCamera(Camera, EasyResource):
     async def get_properties(
         self, *, timeout: Optional[float] = None, **kwargs
     ) -> GetPropertiesResponse:
-            return Camera.Properties(
-                mime_types=['image/png'],
-                supports_pcd= False           
-    )
+            raise NotImplementedError() 
 
 if __name__ == "__main__":
     asyncio.run(Module.run_from_registry())
