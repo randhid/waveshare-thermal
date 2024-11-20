@@ -30,6 +30,17 @@ def convert_frame_to_fahrenheit(frame) -> List[float]:
     fahrenheit_frame = [celsius_to_fahrenheit(temp) for temp in frame]
     return fahrenheit_frame
 
+
+REFRESH_RATE_MAP = {
+    0.5: adafruit_mlx90640.RefreshRate.REFRESH_0_5_HZ,
+    1: adafruit_mlx90640.RefreshRate.REFRESH_1_HZ,
+    2: adafruit_mlx90640.RefreshRate.REFRESH_2_HZ,
+    4: adafruit_mlx90640.RefreshRate.REFRESH_4_HZ,
+    8: adafruit_mlx90640.RefreshRate.REFRESH_8_HZ,
+    16: adafruit_mlx90640.RefreshRate.REFRESH_16_HZ,
+    32: adafruit_mlx90640.RefreshRate.REFRESH_32_HZ,
+    64: adafruit_mlx90640.RefreshRate.REFRESH_64_HZ,
+}
     
 ## Implementation of the mlx90641 ir sensor
 ## This returns an arrya of temperatures
@@ -40,7 +51,7 @@ class MlxSensor(Sensor, EasyResource):
     mlx : adafruit_mlx90640.MLX90640
     _frame_buffer: List[float] = [0]*768
     # Add cache attributes
-    _last_frame: Optional[List[float]] = None
+    _last_frame: Optional[List[float]] = [0]*768
     _last_reading_time: float = 0
     CACHE_DURATION = 0.1  # 100ms cache duration
 
@@ -58,10 +69,19 @@ class MlxSensor(Sensor, EasyResource):
         mlx = adafruit_mlx90640.MLX90640(i2c)
 
         # Set the refresh rate
-        mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
-        
+        refresh_rate = config.attributes.fields["refresh_rate_hz"].number_value
+        # Set refresh rate with fallback
+        try:
+            mlx.refresh_rate = REFRESH_RATE_MAP.get(
+                refresh_rate, 
+                adafruit_mlx90640.RefreshRate.REFRESH_4_HZ  # default fallback
+            )
+        except KeyError:
+            print(f"Invalid refresh rate {refresh_rate}Hz, using 4Hz")
+            mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
+
+
         mlxsensor.mlx = mlx
-        
         # Create a frame buffer
         mlxsensor._frame_buffer = [0]*768 # MLX90640 has 768 pixels    
 
@@ -74,18 +94,24 @@ class MlxSensor(Sensor, EasyResource):
         timeout: Optional[float] = None,
         **kwargs
     ) -> Mapping[str, SensorReading]:        
-        try:
-            # Read the thermal image
-            self.mlx.getFrame(self._frame_buffer)
-            frame = self._frame_buffer.copy()
-
-
-        except Exception as e:
-            raise  Exception(f"Error reading temperature: {e}")
+        current_time = time.time()
         
-        # give i2c some time to send over all the bytes, incase we have a high refresh
-        # rate for a board/sensor combination
-        time.sleep(1)
+        # Return cached readings if within cache duration
+        if self._last_frame and (current_time - self._last_reading_time) < self.CACHE_DURATION:
+            frame = self._last_frame
+        else:
+            try:
+                # Read the thermal image
+                self.mlx.getFrame(self._frame_buffer)
+                frame = self._frame_buffer.copy()
+
+
+            except Exception as e:
+                raise  Exception(f"Error reading temperature: {e}")
+            
+            # give i2c some time to send over all the bytes, in case we have a high refresh
+            # rate for a board/sensor combination
+            time.sleep(0.01)
         
         readings_fahrenheit = convert_frame_to_fahrenheit(frame)
         
@@ -156,6 +182,9 @@ class MlxCamera(Camera, EasyResource):
     )
     mlxsensor : Sensor
     heatmap_palette: List[int]
+    _last_reading_time: float = 0
+    _cached_image: Optional[ViamImage] = None
+    CACHE_DURATION = 0.1  # 100ms cache duration
 
     @classmethod
     def new(
@@ -187,14 +216,24 @@ class MlxCamera(Camera, EasyResource):
         timeout: Optional[float] = None,
         **kwargs
     ) -> ViamImage:
+        current_time = time.time()
+        
+        # Return cached image if within cache duration
+        if self._cached_image and (current_time - self._last_reading_time) < self.CACHE_DURATION:
+            return self._cached_image
+
         readings = await self.mlxsensor.get_readings()
         celcius = readings["all_temperatures_celsius"]
-        return create_thermal_image(
+        
+        self._cached_image = create_thermal_image(
             celcius,
             self.heatmap_palette, 
             width=240, 
             height=320
         )
+        self._last_reading_time = current_time
+        
+        return self._cached_image
 
     async def get_images(
         self, *, timeout: Optional[float] = None, **kwargs
