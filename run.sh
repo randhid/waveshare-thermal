@@ -8,11 +8,6 @@ if ! grep -q "Raspberry Pi" /proc/device-tree/model 2>/dev/null; then
 	exit 1
 fi
 
-# Ensure symbolic link is created (only if it doesn't exist)
-if [ ! sudo test -L /root/.cargo ]; then
-	sudo ln -s /root/.local /root/.cargo
-fi
-
 # Check if modprobe is installed
 if ! command -v modprobe >/dev/null 2>&1; then
 	echo "modprobe not found. Installing it..."
@@ -35,8 +30,8 @@ if ! grep -q "^dtparam=i2c_arm=on" /boot/config.txt; then
 	sudo reboot
 fi
 
-# uv gets installed here
-export PATH=$PATH:$HOME/.cargo/bin
+# uv gets installed in this folder
+export PATH=$PATH:$HOME/.local/bin
 
 if [ ! $(command -v uv) ]; then
 	if [ ! $(command -v curl) ]; then
