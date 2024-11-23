@@ -2,6 +2,7 @@
 import asyncio
 from typing import (Any, ClassVar, Dict, List, Mapping, Optional, cast, Tuple)
 import io
+import os
 
 
 from typing_extensions import Self
@@ -60,6 +61,15 @@ class MlxSensor(Sensor, EasyResource):
       cls, config: ComponentConfig,
       dependencies: Mapping[ResourceName, ResourceBase]
       ) -> Self:
+        
+        """Check if any I2C bus exists under /dev using os."""
+        i2c_buses = [f"/dev/{file}" for file in os.listdir("/dev") if file.startswith("i2c-")]
+        if i2c_buses:
+            print(f"Found I2C buses: {', '.join(i2c_buses)}")
+        else:
+            print("No I2C buses found.")
+            return NotImplementedError
+    
         mlxsensor = cls(config.name)
 
         # Initialize I2C bus

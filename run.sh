@@ -27,7 +27,7 @@ fi
 if ! grep -q "^dtparam=i2c_arm=on" /boot/config.txt; then
 	echo "Enabling I2C in /boot/config.txt..."
 	echo "dtparam=i2c_arm=on" | sudo tee -a /boot/config.txt
-	sudo reboot
+	echo "Please Reboot your Raspberry Pi, we had to write to the device tree to enable I2C"
 fi
 
 # uv gets installed in this folder
