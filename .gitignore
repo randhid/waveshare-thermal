@@ -165,3 +165,6 @@ cython_debug/
 .vscode
 
 *.tar.gz
+
+# test scripts
+test_scripts/
