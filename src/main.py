@@ -123,13 +123,22 @@ class MlxSensor(Sensor, EasyResource):
             # rate for a board/sensor combination
             time.sleep(0.01)
         
-        readings_fahrenheit = convert_frame_to_fahrenheit(frame)
+        # Create mirrored frame
+        mirrored_frame = []
+        for row in range(24):
+            start_idx = row * 32
+            row_data = frame[start_idx:start_idx + 32]
+            mirrored_frame.extend(reversed(row_data))  # reverse each row
         
+        readings_fahrenheit = convert_frame_to_fahrenheit(frame)
+        readings_fahrenheit_mirrored = convert_frame_to_fahrenheit(mirrored_frame)
+ 
         return {
             "all_temperatures_celsius": frame,
             "min_temp_celsius" : min(frame),
             "max_temp_celsius" : max(frame),
             "all_temperatures_fahrenheit" : readings_fahrenheit,
+            "all_temperatures_fahrenheit_mirrored" : readings_fahrenheit_mirrored,
             "min_temp_fahrenheit" : min(readings_fahrenheit),
             "max_temp_fahrenheit" : max(readings_fahrenheit),
         }
@@ -194,6 +203,7 @@ class MlxCamera(Camera, EasyResource):
     heatmap_palette: List[int]
     _last_reading_time: float = 0
     _cached_image: Optional[ViamImage] = None
+    _flipped: bool = False
     CACHE_DURATION = 0.1  # 100ms cache duration
 
     @classmethod
@@ -209,6 +219,11 @@ class MlxCamera(Camera, EasyResource):
         mlxcamera = cls(config.name)
         mlxcamera.mlxsensor = cast(Sensor, sensor)
         mlxcamera.heatmap_palette = create_heatmap_palette()
+
+        flipped = config.attributes.fields["flipped"].bool_value
+        if flipped:
+            mlxcamera._flipped = True
+
         return mlxcamera
     
     @classmethod
@@ -233,10 +248,13 @@ class MlxCamera(Camera, EasyResource):
             return self._cached_image
 
         readings = await self.mlxsensor.get_readings()
-        celcius = readings["all_temperatures_celsius"]
+        if self._flipped:
+            temperature = readings["all_temperatures_fahrenheit_mirrored"]
+        else:
+            temperature = readings["all_temperatures_celsius"]
         
         self._cached_image = create_thermal_image(
-            celcius,
+            temperature,
             self.heatmap_palette, 
             width=240, 
             height=320
