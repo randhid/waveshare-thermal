@@ -27,8 +27,13 @@ $ pip install uv
 Navigate to the [**CONFIGURE** tab](https://docs.viam.com/configure/) of your [machine](https://docs.viam.com/fleet/machines/) in [the Viam app](https://app.viam.com/).
 [Add `sensor`/ `waveshare-thermal:mlx90641-ir-sensor` to your machine](https://docs.viam.com/configure/#components).
 
+### Attributes
 No configuration attributes are required for the sensor.
+The following attributes are available for `rand:waveshare-thermal:mlx90641-ir-sensor` <rdk:component:sensor>s:
 
+| Name    | Type   | Required?    | Description |
+| ------- | ------ | ------------ | ----------- |
+| `refresh_rate_hz` | float | Optional | How often the sensor should refresh and report its readings. Default: 4 hz|
 
 ## Configure your <rand:waveshare-thermal:mlx90641-ir-camera> <rdk:component:camera>
 
