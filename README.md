@@ -58,6 +58,7 @@ The following attributes are available for `rand:waveshare-thermal:mlx90641-ir-c
 | Name    | Type   | Required?    | Description |
 | ------- | ------ | ------------ | ----------- |
 | `sensor` | string | **Required** | Name of the configured  <rand:waveshare-thermal:mlx90641-ir-sensor> on your machine.|
+| `flipped` | bool | Optional | Whether to flip the thermal camera's image.|
 
 ### Example configuration
 
