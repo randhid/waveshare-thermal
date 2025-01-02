@@ -204,7 +204,7 @@ class MlxCamera(Camera, EasyResource):
     _last_reading_time: float = 0
     _cached_image: Optional[ViamImage] = None
     _flipped: bool = False
-    CACHE_DURATION = 0.1  # 100ms cache duration
+    CACHE_DURATION = 0.01  # 10ms cache duration
 
     @classmethod
     def new(

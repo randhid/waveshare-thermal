@@ -168,3 +168,5 @@ cython_debug/
 
 # test scripts
 test_scripts/
+
+.codegpt
