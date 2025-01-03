@@ -54,23 +54,23 @@ class MlxSensor(Sensor, EasyResource):
     # Add cache attributes
     _last_frame: Optional[List[float]] = [0]*768
     _last_reading_time: float = 0
-    CACHE_DURATION = 0.1  # 100ms cache duration
+    CACHE_DURATION = 0.001  # 1ms cache duration
 
     @classmethod
-    def new(
-      cls, config: ComponentConfig,
-      dependencies: Mapping[ResourceName, ResourceBase]
-      ) -> Self:
-        """Check if any I2C bus exists under /dev using os."""
+    def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
+        """Create a new MLX90640 sensor instance."""
+        mlxsensor = cls(config.name)
+        mlxsensor.reconfigure(config, dependencies)
+        return mlxsensor
+    
+    def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
+        """Reconfigure the MLX90640 sensor."""
+        # Check for I2C buses
         i2c_buses = [f"/dev/{file}" for file in os.listdir("/dev") if file.startswith("i2c-")]
-        if i2c_buses:
-            print(f"Found I2C buses: {', '.join(i2c_buses)}")
-        else:
+        if not i2c_buses:
             raise Exception(
                 "i2c not enabled on your device, we tried enabling it through modprobe" +
                 "please ssh into your pi and enable it through sudo raspi-config")
-    
-        mlxsensor = cls(config.name)
 
         # Initialize I2C bus
         i2c = busio.I2C(board.SCL, board.SDA)
@@ -83,19 +83,16 @@ class MlxSensor(Sensor, EasyResource):
         # Set refresh rate with fallback
         try:
             mlx.refresh_rate = REFRESH_RATE_MAP.get(
-                refresh_rate, 
+                refresh_rate,
                 adafruit_mlx90640.RefreshRate.REFRESH_4_HZ  # default fallback
             )
         except KeyError:
             print(f"Invalid refresh rate {refresh_rate}Hz, using 4Hz")
             mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
 
-
-        mlxsensor.mlx = mlx
-        # Create a frame buffer
-        mlxsensor._frame_buffer = [0]*768 # MLX90640 has 768 pixels    
-
-        return mlxsensor
+        # Update instance variables
+        self.mlx = mlx
+        self._frame_buffer = [0]*768  # MLX90640 has 768 pixels
     
     async def get_readings(
         self,
@@ -114,25 +111,30 @@ class MlxSensor(Sensor, EasyResource):
                 # Read the thermal image
                 self.mlx.getFrame(self._frame_buffer)
                 frame = self._frame_buffer.copy()
+                print(f"time to get frame from sensor: {current_time - self._last_reading_time}")
+                self._last_reading_time = current_time
 
 
             except Exception as e:
                 raise  Exception(f"Error reading temperature: {e}")
             
-            # give i2c some time to send over all the bytes, in case we have a high refresh
-            # rate for a board/sensor combination
-            time.sleep(0.01)
         
         # Create mirrored frame
+        mrtime = time.time()
         mirrored_frame = []
         for row in range(24):
             start_idx = row * 32
             row_data = frame[start_idx:start_idx + 32]
             mirrored_frame.extend(reversed(row_data))  # reverse each row
+        emrtime = time.time()
+        print(f"time to mirror frame: {emrtime - mrtime}")
         
+        ctime = time.time()
         readings_fahrenheit = convert_frame_to_fahrenheit(frame)
         readings_fahrenheit_mirrored = convert_frame_to_fahrenheit(mirrored_frame)
- 
+        ectime = time.time()
+        print(f"time to convert to fahrenheit: {ectime - ctime}")
+
         return {
             "all_temperatures_celsius": frame,
             "min_temp_celsius" : min(frame),
@@ -204,7 +206,7 @@ class MlxCamera(Camera, EasyResource):
     _last_reading_time: float = 0
     _cached_image: Optional[ViamImage] = None
     _flipped: bool = False
-    CACHE_DURATION = 0.01  # 10ms cache duration
+    CACHE_DURATION = 0.001  # 10ms cache duration
 
     @classmethod
     def new(
