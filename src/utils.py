@@ -27,7 +27,7 @@ def create_thermal_image(
         height: int) -> ViamImage:
     """
     Create a thermal image directly from sensor data.
-    Combines normalization, heatmap application, and image creation into one optimized flow.
+    Combines normalization, heatmap application, and image creation into one flow.
     """
     try:
         # Normalize temperatures to 0-255 range directly to bytes

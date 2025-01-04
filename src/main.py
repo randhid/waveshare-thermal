@@ -36,6 +36,10 @@ REFRESH_RATE_MAP = {
     64: adafruit_mlx90640.RefreshRate.REFRESH_64_HZ,
 }
 
+CACHE_DURATION = 0.001  # 1ms cache duration
+MAX_RETRIES = 3
+BASE_DELAY = 0.05  # Base delay between retries in seconds
+
 ## Implementation of the mlx90641 ir sensor
 ## This returns an arrya of temperatures
 class MlxSensor(Sensor, EasyResource):
@@ -52,9 +56,6 @@ class MlxSensor(Sensor, EasyResource):
     # Add cache attributes
     _last_frame: Optional[List[float]] = [0]*768
     _last_reading_time: float = 0
-    CACHE_DURATION = 0.001  # 1ms cache duration
-    MAX_RETRIES = 3
-    BASE_DELAY = 0.05  # Base delay between retries in seconds
 
     @classmethod
     def new(
@@ -78,7 +79,7 @@ class MlxSensor(Sensor, EasyResource):
         retry_count = 0
         while not self._stop_event.is_set():
             try:
-                for attempt in range(self.MAX_RETRIES):
+                for attempt in range(MAX_RETRIES):
                     try:
                         self.mlx.getFrame(self._frame_buffer)
                         with self._frame_lock:
@@ -86,14 +87,14 @@ class MlxSensor(Sensor, EasyResource):
                             self._last_reading_time = time.time()
                         break
                     except OSError as e:
-                        if attempt == self.MAX_RETRIES - 1:
+                        if attempt == MAX_RETRIES - 1:
                             raise e
-                        time.sleep(self.BASE_DELAY)
+                        time.sleep(BASE_DELAY)
                 retry_count = 0
             except Exception as e:
                 retry_count += 1
                 print(f"Frame error: {e} (retry {retry_count})")
-                time.sleep(self.BASE_DELAY)
+                time.sleep(BASE_DELAY)
 
     def reconfigure(
             self,
@@ -189,7 +190,6 @@ class MlxCamera(Camera, EasyResource):
     _last_reading_time: float = 0
     _cached_image: Optional[ViamImage] = None
     _flipped: bool = False
-    CACHE_DURATION = 0.001  # 10ms cache duration
 
     @classmethod
     def new(
@@ -240,7 +240,7 @@ class MlxCamera(Camera, EasyResource):
         current_time = time.time()
 
         # Return cached image if within cache duration
-        if self._cached_image and (current_time - self._last_reading_time) < self.CACHE_DURATION:
+        if self._cached_image and (current_time - self._last_reading_time) < CACHE_DURATION:
             return self._cached_image
 
         readings = await self.mlxsensor.get_readings()
