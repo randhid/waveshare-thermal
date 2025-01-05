@@ -2,6 +2,7 @@
 """MLX90641 IR Thermal Sensor and Camera Components."""
 
 import asyncio
+import logging
 import os
 import time
 from threading import Event, Lock, Thread
@@ -24,6 +25,9 @@ from viam.resource.types import Model, ModelFamily
 from viam.utils import SensorReading
 
 import utils
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 REFRESH_RATE_MAP = {
     0.5: adafruit_mlx90640.RefreshRate.REFRESH_0_5_HZ,
@@ -76,25 +80,41 @@ class MlxSensor(Sensor, EasyResource):
         self._read_thread.start()
 
     def _read_frame(self):
+        """Continuously read frames from MLX sensor with retry logic"""
         retry_count = 0
+
         while not self._stop_event.is_set():
             try:
-                for attempt in range(MAX_RETRIES):
-                    try:
-                        self.mlx.getFrame(self._frame_buffer)
-                        with self._frame_lock:
-                            self._last_frame = self._frame_buffer.copy()
-                            self._last_reading_time = time.time()
-                        break
-                    except OSError as e:
-                        if attempt == MAX_RETRIES - 1:
-                            raise e
-                        time.sleep(BASE_DELAY)
+                current_time = time.time()
+                # Check cache first
+                if (current_time - self._last_reading_time) < CACHE_DURATION:
+                    time.sleep(0.001)  # Small sleep to prevent tight loop
+                    continue
+
+                # Read frame from sensor
+                start_time = time.time()
+                self.mlx.getFrame(self._frame_buffer)
+
+                # Log success and reset retry count
+                read_time = (time.time() - start_time) * 1000
+                logger.info(f"Frame read successful in {read_time:.1f}ms")
                 retry_count = 0
-            except Exception as e:
+
+                # Update frame buffer with lock
+                with self._frame_lock:
+                    self._last_frame = self._frame_buffer.copy()
+                    self._last_reading_time = time.time()
+
+            except (OSError, Exception) as e:
                 retry_count += 1
-                print(f"Frame error: {e} (retry {retry_count})")
-                time.sleep(BASE_DELAY)
+                logger.error(f"Frame read failed: {e} (retry {retry_count})")
+
+                if retry_count >= MAX_RETRIES:
+                    logger.error("Max retries exceeded, waiting longer...")
+                    time.sleep(BASE_DELAY * 2)
+                    retry_count = 0
+                else:
+                    time.sleep(BASE_DELAY)
 
     def reconfigure(
             self,
@@ -140,32 +160,32 @@ class MlxSensor(Sensor, EasyResource):
         self._start_reading()
 
     async def get_readings(
-            self,
-            *,
-            extra: Optional[Mapping[str, Any]] = None,
-            timeout: Optional[float] = None,
-            **kwargs
-        ) -> Mapping[str, SensorReading]:
+    self,
+    *,
+    extra: Optional[Mapping[str, Any]] = None,
+    timeout: Optional[float] = None,
+    **kwargs
+    ) -> Mapping[str, SensorReading]:
 
-            with self._frame_lock:
-                frame = self._last_frame.copy()
+        with self._frame_lock:
+            frame = self._last_frame.copy()
 
-            # Convert frame data to readings
-            readings_celsius = frame
-            readings_fahrenheit = [(temp * 9/5) + 32 for temp in readings_celsius]
+        # Convert frame data to readings
+        readings_celsius = frame
+        readings_fahrenheit = [(temp * 9/5) + 32 for temp in readings_celsius]
 
-            # Convert 1D to 2D (24x32), mirror each row, flatten
-            rows = [readings_fahrenheit[i:i+32] for i in range(0, len(readings_fahrenheit), 32)]
-            mirrored = [x for row in rows for x in reversed(row)]
+        # Convert 1D to 2D (24x32), mirror each row, flatten
+        rows = [readings_fahrenheit[i:i+32] for i in range(0, len(readings_fahrenheit), 32)]
+        mirrored = [x for row in rows for x in reversed(row)]
 
-            return {
-                "all_temperatures_celsius": readings_celsius,
-                "all_temperatures_fahrenheit": readings_fahrenheit,
-                "all_temperatures_fahrenheit_mirrored": mirrored,
-                "min_temp_celsius": min(readings_celsius),
-                "max_temp_celsius": max(readings_celsius),
-                "min_temp_fahrenheit": min(readings_fahrenheit),
-                "max_temp_fahrenheit": max(readings_fahrenheit),
+        return {
+            "all_temperatures_celsius": readings_celsius,
+            "all_temperatures_fahrenheit": readings_fahrenheit,
+            "all_temperatures_fahrenheit_mirrored": mirrored,
+            "min_temp_celsius": min(readings_celsius),
+            "max_temp_celsius": max(readings_celsius),
+            "min_temp_fahrenheit": min(readings_fahrenheit),
+            "max_temp_fahrenheit": max(readings_fahrenheit),
             }
 
     async def close(self):
@@ -270,9 +290,9 @@ class MlxCamera(Camera, EasyResource):
         raise NotImplementedError()
 
     async def get_properties(
-        self, *, timeout: Optional[float] = None, **kwargs
+    self, *, timeout: Optional[float] = None, **kwargs
     ) -> GetPropertiesResponse:
-            raise NotImplementedError()
+        raise NotImplementedError()
 
 if __name__ == "__main__":
     asyncio.run(Module.run_from_registry())

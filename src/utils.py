@@ -1,7 +1,8 @@
 """Thermal Image Processing Utilities for MLX90641 Camera Module"""
+import io
 import logging
 from typing import List
-import io
+
 from PIL import Image
 from viam.media.video import ViamImage
 
