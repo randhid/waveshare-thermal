@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from threading import Event, Lock, Thread
-from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple, cast
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple, Sequence, cast
 
 import adafruit_mlx90640
 import board
@@ -97,7 +97,7 @@ class MlxSensor(Sensor, EasyResource):
 
                 # Log success and reset retry count
                 read_time = (time.time() - start_time) * 1000
-                logger.info(f"Frame read successful in {read_time:.1f}ms")
+                logger.debug(f"Frame read successful in {read_time:.1f}ms")
                 retry_count = 0
 
                 # Update frame buffer with lock
@@ -240,7 +240,7 @@ class MlxCamera(Camera, EasyResource):
             self._flipped = True
 
     @classmethod
-    def validate(cls, config: ComponentConfig):
+    def validate_config(cls, config: ComponentConfig) -> Sequence[str]:
         """Validate the MLX90641 IR Camera configuration."""
         sensor_name = config.attributes.fields["sensor"].string_value
         if sensor_name == "":
