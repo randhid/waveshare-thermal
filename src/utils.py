@@ -53,7 +53,7 @@ def create_thermal_image(
         img_bytes = io.BytesIO()
         img.save(img_bytes, format='JPEG', optimize=False, compression_level=1)
         img_bytes.seek(0)
-        return ViamImage(data=img_bytes.read(), mime_type='image/png')
+        return ViamImage(data=img_bytes.read(), mime_type='image/jpeg')
 
     except Exception as e:
         logger.error("Failed to create thermal image %d:", e)
