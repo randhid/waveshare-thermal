@@ -86,7 +86,7 @@ pyftdi==0.55.4
     # via
     #   -r requirements.in
     #   adafruit-blinka
-pymongo==4.10.1
+pymongo==4.11.2
     # via viam-sdk
 pyserial==3.5
     # via
@@ -97,8 +97,6 @@ pyusb==1.2.1
     # via
     #   -r requirements.in
     #   pyftdi
-rpi-gpio==0.7.1
-    # via -r requirements.in
 typing-extensions==4.12.2
     # via
     #   -r requirements.in

@@ -27,8 +27,13 @@ $ pip install uv
 Navigate to the [**CONFIGURE** tab](https://docs.viam.com/configure/) of your [machine](https://docs.viam.com/fleet/machines/) in [the Viam app](https://app.viam.com/).
 [Add `sensor`/ `waveshare-thermal:mlx90641-ir-sensor` to your machine](https://docs.viam.com/configure/#components).
 
-### Attributes
-No configuration attributes are required for the sensor.
+### Sensor Attributes
+No configuration attributes are required for the sensor, but you can set the refresh rate:
+```json
+{
+  "refresh_rate_hz": 2
+}
+```
 The following attributes are available for `rand:waveshare-thermal:mlx90641-ir-sensor` <rdk:component:sensor>s:
 
 | Name    | Type   | Required?    | Description |
@@ -41,19 +46,15 @@ Navigate to the [**CONFIGURE** tab](https://docs.viam.com/configure/) of your [m
 [Add `camera`/ `waveshare-thermal:mlx90641-ir-camera` to your machine](https://docs.viam.com/configure/#components).
 
 
-On the new component panel, copy and paste the following attribute template into your camera's attributes field:
+### Camera Attributes
 
+On the new component panel, copy and paste the following attribute template into your JSON configuration:
 ```json
 {
   "sensor": "<sensor-name>",
-},
-"depends_on" : [ "<sensor-name>"]
+  "flipped": true
+}
 ```
-
-
-### Attributes
-
-The following attributes are available for `rand:waveshare-thermal:mlx90641-ir-camera` <rdk:component:camera>s:
 
 | Name    | Type   | Required?    | Description |
 | ------- | ------ | ------------ | ----------- |

@@ -7,11 +7,15 @@
   "models": [
     {
       "api": "rdk:component:camera",
-      "model": "rand:waveshare-thermal:mlx90641-ir-camera"
+      "model": "rand:waveshare-thermal:mlx90641-ir-camera",
+      "short_description": "thermal images for the mlx90641-ir on a waveshare breakout board connected by i2c",
+      "markdown_link": "README.md#camera-attributes"
     },
     {
       "api": "rdk:component:sensor",
-      "model": "rand:waveshare-thermal:mlx90641-ir-sensor"
+      "model": "rand:waveshare-thermal:mlx90641-ir-sensor",
+      "short_description": "mlx90641-ir thermal sensor on a waveshare breakout board connected by i2c",
+      "markdown_link": "README.md#sensor-attributes"
     }
   ],
   "entrypoint": "run.sh",

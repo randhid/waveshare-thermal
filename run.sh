@@ -77,8 +77,19 @@ if [ ! $(command -v uv) ]; then
 	curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
+# Add a cleanup function
+cleanup() {
+    if [ -d .venv ]; then
+        rm -rf .venv
+        echo "Virtual environment cleaned up"
+    fi
+}
+
+# Add trap to catch script interruption
+trap cleanup EXIT
+
 if [ ! -d .venv ]; then
-	uv venv --python=3.12
+	uv venv --python=3.12 --python-preference system --system-site-packages
 fi
 uv pip sync requirements.txt
 exec .venv/bin/python src/main.py $@
